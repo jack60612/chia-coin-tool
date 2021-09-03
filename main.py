@@ -9,7 +9,7 @@ from chia.util.hash import std_hash
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
 from chia.consensus.constants import ConsensusConstants
 from chia.util.json_util import obj_to_response
-from chia.util.ints import uint8, uint64, uint32
+from chia.util.ints import uint8, uint64, uint32, uint16
 from chia.util.default_root import DEFAULT_ROOT_PATH
 from chia.util.config import load_config
 from chia.rpc.full_node_rpc_client import FullNodeRpcClient
@@ -38,19 +38,16 @@ class CoinTools:
     # start rpc node connection
     async def start(self):
         self.node_rpc_client = await FullNodeRpcClient.create(
-            self.self_hostname, 8555, DEFAULT_ROOT_PATH, self.config
+            self.self_hostname, uint16(8555), DEFAULT_ROOT_PATH, self.config
         )
         self.log.info("Connected to node at %s:%d", self.self_hostname, 8555)
-        # self.search_coin_task = asyncio.create_task(self.search_coin())
-        f_id = bytes32('0x1fd60c070e821d785b65e10e5135e52d12c8f4d902a506f48bc1c5268b7bb45b')
-        self.log.info(f_id)
-        resp = await self.node_rpc_client.fetch("get_coin_record_by_name", {"name": id.hex()})
-        self.log.info(resp)
+        self.search_coin_task = asyncio.create_task(self.search_coin())
 
     async def stop(self):
-        await self.node_rpc_client.close()
         if self.search_coin_task is not None:
             self.search_coin_task.cancel()
+        self.node_rpc_client.close()
+        await self.node_rpc_client.await_closed()
 
     async def get_coin_info(self, coin_id: bytes32) -> Optional[CoinRecord]:
         coin_info: Optional[CoinRecord] = await self.node_rpc_client.get_coin_record_by_name(coin_id)
@@ -64,9 +61,10 @@ class CoinTools:
 
     async def search_coin(self):
         while True:
-            coin_id: bytes32 = input(f"Enter launcher id: ")
+            coin_id: bytes32 = hexstr_to_bytes(input(f"Enter launcher id: "))
+            self.log.info(coin_id.hex())
             coin_info = await self.get_coin_info(coin_id)
-            return coin_info
+            print(coin_info)
 
 
 config = load_config(DEFAULT_ROOT_PATH, "config.yaml")
