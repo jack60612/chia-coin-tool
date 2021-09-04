@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional, Tuple, Dict, Union
 # chia imports
 from chia.types.blockchain_format.sized_bytes import bytes32
-from chia.types.blockchain_format.program import Program
+from chia.types.blockchain_format.program import Program, SerializedProgram
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.hash import std_hash
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
@@ -21,7 +21,7 @@ from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
 from chia.pools.pool_wallet import PoolSingletonState
 from chia.pools.pool_wallet_info import PoolState
-
+from chia.pools.pool_puzzles import solution_to_extra_data, get_most_recent_singleton_coin_from_coin_spend
 # clvm imports
 from cdv.cmds.util import parse_program
 from clvm_tools.binutils import disassemble
@@ -43,7 +43,7 @@ class CoinTools:
         self.hostname = config["self_hostname"]
         self.port: uint16 = uint16(8555)
         # temporary just so i dont have to type it in every time
-        coin_id: bytes32 = hexstr_to_bytes("0xdce550a4341e5ec31c7e3fe5c6ab9801c66ed02689725939537d8d4492465800")
+        #coin_id: bytes32 = hexstr_to_bytes("0xb386f2f8cb8a2804ec7dd2694cdd68feb1c4f36afd89cbffc52b53070a1f65db")
         self.coin_id = coin_id
         # define tasks and clients
         self.node_rpc_client: Optional[FullNodeRpcClient] = None
@@ -68,18 +68,30 @@ class CoinTools:
     async def get_coin_info(self, coin_id: bytes32) -> Optional[CoinSpend]:
         base_coin_info: Optional[CoinRecord] = await self.node_rpc_client.get_coin_record_by_name(coin_id)
         if base_coin_info is None:
-            self.log.warning(f"Can not find genesis coin {coin_id}")
+            self.log.warning(f"Can not find genesis coin {coin_id.hex()}")
             return None
         if not base_coin_info.spent:
-            self.log.warning(f"Genesis coin {coin_id} not spent")
+            self.log.warning(f"Genesis coin {coin_id.hex()} not spent")
             return None
-        coin_info = await self.node_rpc_client.get_puzzle_and_solution(self.coin_id,
+        coin_info = await self.node_rpc_client.get_puzzle_and_solution(coin_id,
                                                                        base_coin_info.spent_block_index)
+        singleton_result = get_most_recent_singleton_coin_from_coin_spend(coin_info)
+        if singleton_result is not None:
+            self.log.info(f"Coin {coin_id.hex()} Is a singleton")
+            try:
+                possible_pool_state: Optional[PoolState] = solution_to_extra_data(coin_info)
+                if possible_pool_state is not None:
+                    # will do something with this later
+                    pool_state = possible_pool_state
+                    self.log.info(f"The singletons pool state is: {pool_state}")
+            except Exception as e:
+                self.log.info(f"Singleton is not for pooling: {e}")
+
         return coin_info
 
     async def main_coin(self):
         if self.coin_id is None:
-            self.coin_id: bytes32 = hexstr_to_bytes(input(f"Enter launcher id: "))
+            self.coin_id: bytes32 = hexstr_to_bytes(input(f"Enter coin id: "))
         result = await self.get_coin_info(self.coin_id)
         self.log.info("Coin info: " + str(result))
         self.log.info("\nDeserialized Puzzle: " + disassemble(parse_program(str(result.puzzle_reveal))))
