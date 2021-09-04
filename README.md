@@ -1,2 +1,2 @@
-# chia-launcherid_search
- search singletons on the blockchain 
+# chia-coin-tool
+ search coins on the blockchain 
