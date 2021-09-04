@@ -1,9 +1,10 @@
 # generic imports
 import asyncio
 import logging
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Union
 # chia imports
 from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.types.blockchain_format.program import Program
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.hash import std_hash
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
@@ -21,6 +22,10 @@ from chia.types.spend_bundle import SpendBundle
 from chia.pools.pool_wallet import PoolSingletonState
 from chia.pools.pool_wallet_info import PoolState
 
+# clvm imports
+from cdv.cmds.util import parse_program
+from clvm_tools.binutils import disassemble
+
 # define constants + config
 config = load_config(DEFAULT_ROOT_PATH, "config.yaml")
 overrides = config["network_overrides"]["constants"][config["selected_network"]]
@@ -31,11 +36,14 @@ class CoinTools:
     def __init__(self, config: Dict, constants: ConsensusConstants, coin_id: Optional[bytes32] = None):
         # start logging
         self.log = logging
-        self.log.basicConfig(level=logging.DEBUG)
+        self.log.basicConfig(level=logging.INFO)
         # load chia config and constants
         self.config = config
         self.constants = constants
-        self.self_hostname = config["self_hostname"]
+        self.hostname = config["self_hostname"]
+        self.port: uint16 = uint16(8555)
+        # temporary just so i dont have to type it in every time
+        coin_id: bytes32 = hexstr_to_bytes("0xdce550a4341e5ec31c7e3fe5c6ab9801c66ed02689725939537d8d4492465800")
         self.coin_id = coin_id
         # define tasks and clients
         self.node_rpc_client: Optional[FullNodeRpcClient] = None
@@ -44,9 +52,9 @@ class CoinTools:
     # start rpc node connection
     async def start(self):
         self.node_rpc_client = await FullNodeRpcClient.create(
-            self.self_hostname, uint16(8555), DEFAULT_ROOT_PATH, self.config
+            self.hostname, self.port, DEFAULT_ROOT_PATH, self.config
         )
-        self.log.info("Connected to node at %s:%d", self.self_hostname, 8555)
+        self.log.info("Connected to node at %s:%d", self.hostname, self.port)
         # self.main_coin_task = asyncio.create_task(self.main_coin())
         await self.main_coin()
         await self.stop()
@@ -65,15 +73,16 @@ class CoinTools:
         if not base_coin_info.spent:
             self.log.warning(f"Genesis coin {coin_id} not spent")
             return None
-        coin_info: Optional[CoinSpend] = \
-            await self.node_rpc_client.get_puzzle_and_solution(self.coin_id, base_coin_info.spent_block_index)
+        coin_info = await self.node_rpc_client.get_puzzle_and_solution(self.coin_id,
+                                                                       base_coin_info.spent_block_index)
         return coin_info
 
     async def main_coin(self):
         if self.coin_id is None:
             self.coin_id: bytes32 = hexstr_to_bytes(input(f"Enter launcher id: "))
         result = await self.get_coin_info(self.coin_id)
-        self.log.info(result)
+        self.log.info("Coin info: " + str(result))
+        self.log.info("\nDeserialized Puzzle: " + disassemble(parse_program(str(result.puzzle_reveal))))
 
 
 tool_server: CoinTools = CoinTools(config, constants)
