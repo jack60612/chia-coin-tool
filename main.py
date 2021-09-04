@@ -95,6 +95,7 @@ class CoinTools:
         result = await self.get_coin_info(self.coin_id)
         self.log.info("Coin info: " + str(result))
         self.log.info("\nDeserialized Puzzle: " + disassemble(parse_program(str(result.puzzle_reveal))))
+        self.log.info("\nDeserialized Solution: " + disassemble(parse_program(str(result.solution))))
 
 
 tool_server: CoinTools = CoinTools(config, constants)
