@@ -21,7 +21,7 @@ from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
 from chia.pools.pool_wallet import PoolSingletonState
 from chia.pools.pool_wallet_info import PoolState
-from chia.pools.pool_puzzles import solution_to_extra_data, get_most_recent_singleton_coin_from_coin_spend
+from chia.pools.pool_puzzles import solution_to_pool_state, get_most_recent_singleton_coin_from_coin_spend
 # clvm imports
 from cdv.cmds.util import parse_program
 from clvm_tools.binutils import disassemble
@@ -79,7 +79,7 @@ class CoinTools:
         if singleton_result is not None:
             self.log.info(f"Coin {coin_id.hex()} Is a singleton")
             try:
-                possible_pool_state: Optional[PoolState] = solution_to_extra_data(coin_info)
+                possible_pool_state: Optional[PoolState] = solution_to_pool_state(coin_info)
                 if possible_pool_state is not None:
                     # will do something with this later
                     pool_state = possible_pool_state
