@@ -1,1 +1,1 @@
-chia_blockchain~=1.2.5
+chia_blockchain~=1.3.5
